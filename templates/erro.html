@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Erro {{ codigo | default(500) }} · BIP-PME{% endblock %}
+
+{% block content %}
+{#
+  Página de erro.
+  Variáveis esperadas (com fallback se não vierem):
+    • codigo   — número HTTP (404, 500, etc.)
+    • mensagem — texto explicativo (opcional)
+    • empresas — lista para a sidebar (opcional)
+#}
+
+{% set _codigo = codigo | default(500) %}
+{% set _mensagem = mensagem
+                   or ("Página não encontrada." if _codigo == 404
+                       else "Erro interno no servidor.") %}
+
+{% set _icone = "🔍" if _codigo == 404
+               else ("💥" if _codigo == 500
+               else ("🚫" if _codigo == 403
+               else ("⏱️" if _codigo == 408 else "⚠️"))) %}
+
+{% set _dica = "Verifica o endereço ou volta à visão geral."
+              if _codigo == 404
+              else ("Os logs do Flask têm o traceback completo. "
+                    "Recomeça por / ou reinicia o servidor."
+                    if _codigo == 500
+              else ("Tenta novamente daqui a pouco.")) %}
+
+<section class="erro-page" role="alert" aria-live="polite">
+  <div class="erro-icon">{{ _icone }}</div>
+  <h1>Erro {{ _codigo }}</h1>
+  <p class="erro-mensagem">{{ _mensagem }}</p>
+  <p class="erro-dica">{{ _dica }}</p>
+
+  <div class="erro-acoes">
+    <a href="/" class="btn-csv">← Voltar ao início</a>
+    <button type="button"
+            class="btn-voltar"
+            onclick="history.length > 1 ? history.back() : window.location.href='/'">
+      ⟲ Voltar atrás
+    </button>
+  </div>
+</section>
+{% endblock %}

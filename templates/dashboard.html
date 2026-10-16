@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}Visão Geral · BIP-PME{% endblock %}
+
+{% block content %}
+
+<!-- ============================================================ -->
+<!-- Cabeçalho                                                     -->
+<!-- ============================================================ -->
+<header class="page-head">
+  <div>
+    <h1>Painel Global <span class="wave">👋</span></h1>
+    <p>Análise consolidada de todas as empresas do BIP-PME</p>
+  </div>
+  <div class="page-head-actions">
+    <a class="btn-csv" href="/export/comparativo.csv"
+       aria-label="Exportar comparativo em CSV">
+      <span class="material-symbols-rounded" aria-hidden="true">download</span>
+      Exportar comparativo
+    </a>
+  </div>
+</header>
+
+<!-- ============================================================ -->
+<!-- KPIs globais                                                  -->
+<!-- ============================================================ -->
+<section class="grid kpis">
+  <div class="kpi primary">
+    <span class="material-symbols-rounded kpi-icon" aria-hidden="true">payments</span>
+    <h3>{{ kpis.total_vendas | mzn }}</h3>
+    <p>Vendas Totais</p>
+  </div>
+  <div class="kpi accent">
+    <span class="material-symbols-rounded kpi-icon" aria-hidden="true">receipt_long</span>
+    <h3>{{ kpis.n_vendas }}</h3>
+    <p>Nº de Vendas</p>
+  </div>
+  <div class="kpi success">
+    <span class="material-symbols-rounded kpi-icon" aria-hidden="true">apartment</span>
+    <h3>{{ kpis.n_empresas }}</h3>
+    <p>Empresas Activas</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- Gráficos comparativos                                         -->
+<!-- Cada <div id="..."> tem a mesma chave que `graficos` no app.py -->
+<!-- ============================================================ -->
+<section class="grid graficos">
+
+  <div class="card">
+    <div class="card-head">
+      <h2>
+        <span class="material-symbols-rounded" aria-hidden="true">bar_chart</span>
+        Vendas por empresa
+      </h2>
+    </div>
+    {% if graficos.comparativo %}
+      <div id="comparativo" class="plot"></div>
+    {% else %}
+      <p class="empty">Sem dados para mostrar.</p>
+    {% endif %}
+  </div>
+
+  <div class="card small">
+    <div class="card-head">
+      <h2>
+        <span class="material-symbols-rounded" aria-hidden="true">pie_chart</span>
+        Distribuição de vendas
+      </h2>
+    </div>
+    {% if graficos.distribuicao %}
+      <div id="distribuicao" class="plot"></div>
+    {% else %}
+      <p class="empty">Sem dados para mostrar.</p>
+    {% endif %}
+  </div>
+
+</section>
+
+<!-- ============================================================ -->
+<!-- Ranking HTML (mais rápido e bonito que gráfico)               -->
+<!-- ============================================================ -->
+<section class="card">
+  <div class="card-head">
+    <h2>
+      <span class="material-symbols-rounded" aria-hidden="true">emoji_events</span>
+      Ranking de Empresas
+    </h2>
+  </div>
+  <div id="ranking" class="ranking">
+    <p class="empty">A carregar…</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- Figuras Plotly (lidas pelo dashboard.js)                      -->
+<!--                                                                -->
+<!-- IMPORTANTE:                                                    -->
+<!--   • NÃO usar `| tojson` — as figuras já são strings JSON       -->
+<!--     geradas por `pio.to_json()` no app.py                      -->
+<!--   • `| safe` injeta o JSON tal-e-qual                          -->
+<!--   • `type="application/json"` impede execução                  -->
+<!-- ============================================================ -->
+<script id="dados-graficos" type="application/json">
+{
+  "comparativo":  {{ graficos.comparativo  | safe if graficos.comparativo  else 'null' }},
+  "distribuicao": {{ graficos.distribuicao | safe if graficos.distribuicao else 'null' }}
+}
+</script>
+
+<!-- ============================================================ -->
+<!-- Ranking em HTML (fetch da API)                                -->
+<!-- ============================================================ -->
+<script>
+(function () {
+  "use strict";
+  const container = document.getElementById("ranking");
+  if (!container) return;
+
+  fetch("/api/comparativo")
+    .then((r) => {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    })
+    .then((data) => {
+      if (!Array.isArray(data) || data.length === 0) {
+        container.innerHTML = '<p class="empty">Sem dados.</p>';
+        return;
+      }
+
+      const max = Math.max(...data.map((d) => Number(d.total_vendas) || 0));
+      const medalhas = ["🥇", "🥈", "🥉"];
+
+      container.innerHTML = data.map((d, i) => {
+        const valor = Number(d.total_vendas) || 0;
+        const pct   = max > 0 ? (valor / max * 100) : 0;
+        const medal = medalhas[i] || ("#" + (i + 1));
+        const total = valor.toLocaleString("pt-PT");
+
+        return `
+          <div class="rank-row">
+            <div class="rank-pos">${medal}</div>
+            <div class="rank-name">${d.name_company ?? "—"}</div>
+            <div class="rank-bar">
+              <div class="rank-fill" style="width:${pct}%"></div>
+            </div>
+            <div class="rank-val">${total} MZN</div>
+          </div>
+        `;
+      }).join("");
+    })
+    .catch((err) => {
+      console.error("[dashboard.html] ranking fetch falhou:", err);
+      container.innerHTML =
+        '<p class="empty">Não foi possível carregar o ranking.</p>';
+    });
+})();
+</script>
+
+{% endblock %}

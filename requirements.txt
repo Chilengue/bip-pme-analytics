@@ -1,0 +1,6 @@
+flask==3.0.3
+pandas==2.2.3
+mysql-connector-python==9.1.0
+plotly==5.24.1
+python-dotenv==1.0.1
+SQLAlchemy==2.0.36

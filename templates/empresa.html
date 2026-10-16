@@ -1,0 +1,537 @@
+{% extends "base.html" %}
+{% block title %}{{ empresa.name_company }} · BIP-PME{% endblock %}
+
+{% block content %}
+
+<!-- ============================================================ -->
+<!-- Cabeçalho da empresa                                          -->
+<!-- ============================================================ -->
+<header class="page-head">
+  <div class="page-head-title">
+    <div class="company-avatar">
+      {{ empresa.name_company[:1] | upper }}
+    </div>
+    <div>
+      <h1>{{ empresa.name_company }}</h1>
+      <p>
+        {{ empresa.sector_company or 'Sector não definido' }}
+        · {{ empresa.country_company or '—' }}
+      </p>
+      <span class="badge {{ empresa.status_company }}">
+        <span class="material-symbols-rounded badge-dot">circle</span>
+        {{ empresa.status_company }}
+      </span>
+    </div>
+  </div>
+
+  <div class="page-head-actions">
+    <a class="btn-csv"
+       href="/export/empresa/{{ empresa.id_company }}/vendas.csv"
+       aria-label="Exportar vendas em CSV">
+      <span class="material-symbols-rounded" aria-hidden="true">download</span>
+      CSV vendas
+    </a>
+  </div>
+</header>
+
+<!-- ============================================================ -->
+<!-- Filtros                                                       -->
+<!-- ============================================================ -->
+<section class="filtro-bar">
+  <div class="filtro-presets">
+    <button type="button" onclick="aplicarFiltro('hoje')"
+            class="chip {% if request.args.get('preset') == 'hoje' %}active{% endif %}">Hoje</button>
+    <button type="button" onclick="aplicarFiltro('semana')"
+            class="chip {% if request.args.get('preset') == 'semana' %}active{% endif %}">7 dias</button>
+    <button type="button" onclick="aplicarFiltro('mes')"
+            class="chip {% if request.args.get('preset') == 'mes' %}active{% endif %}">Este mês</button>
+    <button type="button" onclick="aplicarFiltro('ano')"
+            class="chip {% if request.args.get('preset') == 'ano' %}active{% endif %}">Este ano</button>
+  </div>
+
+  <form class="filtro" onsubmit="event.preventDefault(); aplicarDatas();">
+    <input id="filtro-inicio" type="date" name="inicio" value="{{ inicio }}">
+    <input id="filtro-fim"    type="date" name="fim"    value="{{ fim }}">
+    <button type="submit">
+      <span class="material-symbols-rounded" aria-hidden="true">search</span>
+      Filtrar
+    </button>
+    <button type="button" class="limpar" onclick="limparFiltro()">Limpar</button>
+  </form>
+</section>
+
+<p class="periodo">
+  <span class="material-symbols-rounded periodo-icon" aria-hidden="true">calendar_month</span>
+  Período: <strong>{{ periodo_label }}</strong>
+</p>
+
+<!-- ============================================================ -->
+<!-- KPIs                                                          -->
+<!-- ============================================================ -->
+<section class="grid kpis">
+  <div class="kpi primary">
+    <span class="material-symbols-rounded kpi-icon" aria-hidden="true">payments</span>
+    <h3>{{ kpis.total_vendas | mzn }}</h3>
+    <p>Total Vendas</p>
+  </div>
+
+  <div class="kpi accent">
+    <span class="material-symbols-rounded kpi-icon" aria-hidden="true">receipt_long</span>
+    <h3>{{ kpis.n_vendas }}</h3>
+    <p>Nº Vendas</p>
+  </div>
+
+  <div class="kpi success">
+    <span class="material-symbols-rounded kpi-icon" aria-hidden="true">credit_card</span>
+    <h3>{{ kpis.total_pago | mzn }}</h3>
+    <p>Total Pago</p>
+  </div>
+
+  <div class="kpi warning">
+    <span class="material-symbols-rounded kpi-icon" aria-hidden="true">target</span>
+    <h3>{{ kpis.ticket_medio | mzn }}</h3>
+    <p>Ticket Médio</p>
+  </div>
+
+  <div class="kpi">
+    <span class="material-symbols-rounded kpi-icon" aria-hidden="true">inventory_2</span>
+    <h3>{{ kpis.total_produtos }}</h3>
+    <p>Produtos</p>
+  </div>
+
+  <div class="kpi">
+    <span class="material-symbols-rounded kpi-icon" aria-hidden="true">group</span>
+    <h3>{{ kpis.n_clientes }}</h3>
+    <p>Clientes</p>
+  </div>
+
+  <div class="kpi">
+    <span class="material-symbols-rounded kpi-icon" aria-hidden="true">sell</span>
+    <h3>{{ kpis.stock_total }}</h3>
+    <p>Unidades em Stock</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- Destaques: Mês de pico + Recomendações                        -->
+<!-- ============================================================ -->
+<section class="grid destaque-grid">
+
+  <div class="card destaque-pico">
+    <div class="card-head">
+      <h2>
+        <span class="material-symbols-rounded" aria-hidden="true">military_tech</span>
+        Mês de pico
+      </h2>
+    </div>
+    {% if pico %}
+      <div class="pico-valor">{{ pico.total | mzn }}</div>
+      <div class="pico-mes">{{ pico.mes }} · {{ pico.n }} venda(s)</div>
+      <p class="pico-texto">
+        Este foi o mês com maior volume de vendas. Reforça stock e
+        equipa nesta altura para não perderes oportunidades.
+      </p>
+    {% else %}
+      <p class="empty">Sem dados de pico.</p>
+    {% endif %}
+  </div>
+
+  <div class="card destaque-recs">
+    <div class="card-head">
+      <h2>
+        <span class="material-symbols-rounded" aria-hidden="true">lightbulb</span>
+        Recomendações
+      </h2>
+      <span class="pill">{{ recomendacoes|length }}</span>
+    </div>
+    {% if recomendacoes %}
+      <ul class="recs-lista">
+        {% for r in recomendacoes %}
+          <li class="rec rec-{{ r.nivel }}">
+            <strong>{{ r.titulo }}</strong>
+            <span>{{ r.texto }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="empty">Sem recomendações por agora. Bom sinal! ✅</p>
+    {% endif %}
+  </div>
+
+</section>
+
+<!-- ============================================================ -->
+<!-- Gráficos — cada <div id="..."> tem a chave do dicionário      -->
+<!-- `graficos` que o app.py gera.                                 -->
+<!-- ============================================================ -->
+<section class="grid graficos">
+
+  <!-- Evolução diária -->
+  <div class="card">
+    <div class="card-head">
+      <h2>
+        <span class="material-symbols-rounded" aria-hidden="true">show_chart</span>
+        Evolução diária de vendas
+      </h2>
+    </div>
+    {% if graficos.vendas_dia %}
+      <div id="vendas_dia" class="plot"></div>
+    {% else %}
+      <p class="empty">Sem dados para mostrar.</p>
+    {% endif %}
+  </div>
+
+  <!-- Vendas por mês -->
+  <div class="card">
+    <div class="card-head">
+      <h2>
+        <span class="material-symbols-rounded" aria-hidden="true">bar_chart</span>
+        Vendas por mês
+      </h2>
+    </div>
+    {% if graficos.vendas_mes %}
+      <div id="vendas_mes" class="plot"></div>
+    {% else %}
+      <p class="empty">Sem dados para mostrar.</p>
+    {% endif %}
+  </div>
+
+  <!-- Vendas por dia da semana -->
+  <div class="card">
+    <div class="card-head">
+      <h2>
+        <span class="material-symbols-rounded" aria-hidden="true">calendar_view_week</span>
+        Vendas por dia da semana
+      </h2>
+    </div>
+    {% if graficos.vendas_dia_semana %}
+      <div id="vendas_dia_semana" class="plot"></div>
+    {% else %}
+      <p class="empty">Sem dados para mostrar.</p>
+    {% endif %}
+  </div>
+
+  <!-- Vendas por hora -->
+  <div class="card">
+    <div class="card-head">
+      <h2>
+        <span class="material-symbols-rounded" aria-hidden="true">schedule</span>
+        Vendas por hora
+      </h2>
+    </div>
+    {% if graficos.vendas_hora %}
+      <div id="vendas_hora" class="plot"></div>
+    {% else %}
+      <p class="empty">Sem dados para mostrar.</p>
+    {% endif %}
+  </div>
+
+  <!-- Top produtos por receita -->
+  <div class="card small">
+    <div class="card-head">
+      <h2>
+        <span class="material-symbols-rounded" aria-hidden="true">pie_chart</span>
+        Top produtos por receita
+      </h2>
+    </div>
+    {% if graficos.top_produtos %}
+      <div id="top_produtos" class="plot"></div>
+    {% else %}
+      <p class="empty">Sem dados para mostrar.</p>
+    {% endif %}
+  </div>
+
+  <!-- Top produtos por quantidade -->
+  <div class="card">
+    <div class="card-head">
+      <h2>
+        <span class="material-symbols-rounded" aria-hidden="true">inventory_2</span>
+        Top produtos por quantidade
+      </h2>
+    </div>
+    {% if graficos.top_qtd %}
+      <div id="top_qtd" class="plot"></div>
+    {% else %}
+      <p class="empty">Sem dados para mostrar.</p>
+    {% endif %}
+  </div>
+
+  <!-- Produtos menos vendidos -->
+  <div class="card">
+    <div class="card-head">
+      <h2>
+        <span class="material-symbols-rounded" aria-hidden="true">trending_down</span>
+        Produtos menos vendidos
+      </h2>
+    </div>
+    {% if graficos.menos_vendidos %}
+      <div id="menos_vendidos" class="plot"></div>
+    {% else %}
+      <p class="empty">Sem dados para mostrar.</p>
+    {% endif %}
+  </div>
+
+  <!-- Formas de pagamento -->
+  <div class="card small">
+    <div class="card-head">
+      <h2>
+        <span class="material-symbols-rounded" aria-hidden="true">credit_card</span>
+        Formas de pagamento
+      </h2>
+    </div>
+    {% if graficos.pagamentos %}
+      <div id="pagamentos" class="plot"></div>
+    {% else %}
+      <p class="empty">Sem dados para mostrar.</p>
+    {% endif %}
+  </div>
+
+  <!-- Stock crítico -->
+  <div class="card">
+    <div class="card-head">
+      <h2>
+        <span class="material-symbols-rounded" aria-hidden="true">warning</span>
+        Stock — produtos mais críticos
+      </h2>
+    </div>
+    {% if graficos.stock %}
+      <div id="stock" class="plot"></div>
+    {% else %}
+      <p class="empty">Sem dados para mostrar.</p>
+    {% endif %}
+  </div>
+
+  <!-- Ranking de operadores -->
+  <div class="card">
+    <div class="card-head">
+      <h2>
+        <span class="material-symbols-rounded" aria-hidden="true">emoji_events</span>
+        Ranking de operadores
+      </h2>
+    </div>
+    {% if graficos.operadores %}
+      <div id="operadores" class="plot"></div>
+    {% else %}
+      <p class="empty">Sem dados para mostrar.</p>
+    {% endif %}
+  </div>
+
+  <!-- Top clientes -->
+  <div class="card">
+    <div class="card-head">
+      <h2>
+        <span class="material-symbols-rounded" aria-hidden="true">person</span>
+        Top clientes por receita
+      </h2>
+    </div>
+    {% if graficos.top_clientes %}
+      <div id="top_clientes" class="plot"></div>
+    {% else %}
+      <p class="empty">Sem dados para mostrar.</p>
+    {% endif %}
+  </div>
+
+  <!-- Sazonalidade -->
+  <div class="card">
+    <div class="card-head">
+      <h2>
+        <span class="material-symbols-rounded" aria-hidden="true">wb_sunny</span>
+        Sazonalidade (média por mês)
+      </h2>
+    </div>
+    {% if graficos.sazonalidade %}
+      <div id="sazonalidade" class="plot"></div>
+    {% else %}
+      <p class="empty">Sem dados para mostrar.</p>
+    {% endif %}
+  </div>
+
+  <!-- Ticket médio por mês -->
+  <div class="card">
+    <div class="card-head">
+      <h2>
+        <span class="material-symbols-rounded" aria-hidden="true">target</span>
+        Ticket médio por mês
+      </h2>
+    </div>
+    {% if graficos.ticket_mes %}
+      <div id="ticket_mes" class="plot"></div>
+    {% else %}
+      <p class="empty">Sem dados para mostrar.</p>
+    {% endif %}
+  </div>
+
+  <!-- Novos clientes por mês -->
+  <div class="card">
+    <div class="card-head">
+      <h2>
+        <span class="material-symbols-rounded" aria-hidden="true">person_add</span>
+        Novos clientes por mês
+      </h2>
+    </div>
+    {% if graficos.novos_clientes %}
+      <div id="novos_clientes" class="plot"></div>
+    {% else %}
+      <p class="empty">Sem dados para mostrar.</p>
+    {% endif %}
+  </div>
+
+  <!-- Categorias -->
+  <div class="card small">
+    <div class="card-head">
+      <h2>
+        <span class="material-symbols-rounded" aria-hidden="true">category</span>
+        Vendas por categoria
+      </h2>
+    </div>
+    {% if graficos.categorias %}
+      <div id="categorias" class="plot"></div>
+    {% else %}
+      <p class="empty">Sem dados para mostrar.</p>
+    {% endif %}
+  </div>
+
+</section>
+
+<!-- ============================================================ -->
+<!-- Listas: nunca vendidos, menos vendidos, top clientes          -->
+<!-- ============================================================ -->
+
+<!-- Produtos nunca vendidos -->
+<section class="card">
+  <div class="card-head">
+    <h2>
+      <span class="material-symbols-rounded" aria-hidden="true">search_off</span>
+      Produtos Nunca Vendidos
+    </h2>
+    <span class="pill">{{ nunca_vendidos|length }}</span>
+  </div>
+
+  {% if nunca_vendidos %}
+    <table class="tabela">
+      <thead>
+        <tr>
+          <th>Produto</th>
+          <th class="text-right">Preço</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in nunca_vendidos %}
+          <tr>
+            <td>{{ p.name_product }}</td>
+            <td class="text-right">{{ p.price_product | mzn }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="empty-state">
+      <span class="material-symbols-rounded empty-icon" aria-hidden="true">check_circle</span>
+      <p>Todos os produtos já foram vendidos pelo menos uma vez.</p>
+    </div>
+  {% endif %}
+</section>
+
+<!-- Produtos menos vendidos (lista) -->
+<section class="card">
+  <div class="card-head">
+    <h2>
+      <span class="material-symbols-rounded" aria-hidden="true">trending_down</span>
+      Produtos Menos Vendidos (lista)
+    </h2>
+    <span class="pill">{{ menos_vendidos|length }}</span>
+  </div>
+
+  {% if menos_vendidos %}
+    <table class="tabela">
+      <thead>
+        <tr>
+          <th>Produto</th>
+          <th class="text-right">Quantidade vendida</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in menos_vendidos %}
+          <tr>
+            <td>{{ p.name_product }}</td>
+            <td class="text-right tabular">{{ p.qtd_vendida }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="empty-state">
+      <span class="material-symbols-rounded empty-icon" aria-hidden="true">show_chart</span>
+      <p>Sem produtos para listar.</p>
+    </div>
+  {% endif %}
+</section>
+
+<!-- Top clientes (lista) -->
+<section class="card">
+  <div class="card-head">
+    <h2>
+      <span class="material-symbols-rounded" aria-hidden="true">group</span>
+      Clientes com mais compras (lista)
+    </h2>
+    <span class="pill">{{ top_clientes|length }}</span>
+  </div>
+
+  {% if top_clientes %}
+    <table class="tabela">
+      <thead>
+        <tr>
+          <th>Cliente</th>
+          <th class="text-right">Nº vendas</th>
+          <th class="text-right">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in top_clientes %}
+          <tr>
+            <td>{{ c.name_client }}</td>
+            <td class="text-right tabular">{{ c.n_vendas }}</td>
+            <td class="text-right tabular">{{ c.total | mzn }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="empty-state">
+      <span class="material-symbols-rounded empty-icon" aria-hidden="true">group_off</span>
+      <p>Sem dados de clientes.</p>
+    </div>
+  {% endif %}
+</section>
+
+<!-- ============================================================ -->
+<!-- Figuras Plotly (lidas pelo dashboard.js)                      -->
+<!--                                                                -->
+<!-- IMPORTANTE:                                                    -->
+<!--   • NÃO usar `| tojson` — as figuras já são strings JSON       -->
+<!--     geradas por `pio.to_json()` no app.py                      -->
+<!--   • `| safe` injeta o JSON tal-e-qual                          -->
+<!--   • `type="application/json"` impede execução — é lido pelo    -->
+<!--     dashboard.js via `JSON.parse(nodo.textContent)`            -->
+<!-- ============================================================ -->
+<script id="dados-graficos" type="application/json">
+{
+  "vendas_dia":        {{ graficos.vendas_dia        | safe if graficos.vendas_dia        else 'null' }},
+  "vendas_mes":        {{ graficos.vendas_mes        | safe if graficos.vendas_mes        else 'null' }},
+  "vendas_dia_semana": {{ graficos.vendas_dia_semana | safe if graficos.vendas_dia_semana else 'null' }},
+  "vendas_hora":       {{ graficos.vendas_hora       | safe if graficos.vendas_hora       else 'null' }},
+  "top_produtos":      {{ graficos.top_produtos      | safe if graficos.top_produtos      else 'null' }},
+  "top_qtd":           {{ graficos.top_qtd           | safe if graficos.top_qtd           else 'null' }},
+  "menos_vendidos":    {{ graficos.menos_vendidos    | safe if graficos.menos_vendidos    else 'null' }},
+  "pagamentos":        {{ graficos.pagamentos        | safe if graficos.pagamentos        else 'null' }},
+  "stock":             {{ graficos.stock             | safe if graficos.stock             else 'null' }},
+  "operadores":        {{ graficos.operadores        | safe if graficos.operadores        else 'null' }},
+  "top_clientes":      {{ graficos.top_clientes      | safe if graficos.top_clientes      else 'null' }},
+  "sazonalidade":      {{ graficos.sazonalidade      | safe if graficos.sazonalidade      else 'null' }},
+  "ticket_mes":        {{ graficos.ticket_mes        | safe if graficos.ticket_mes        else 'null' }},
+  "novos_clientes":    {{ graficos.novos_clientes    | safe if graficos.novos_clientes    else 'null' }},
+  "categorias":        {{ graficos.categorias        | safe if graficos.categorias        else 'null' }}
+}
+</script>
+
+{% endblock %}

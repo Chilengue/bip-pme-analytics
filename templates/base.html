@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="description" content="BIP-PME Analytics — painel de análise de vendas, produtos, clientes e stock.">
+  <title>{% block title %}BIP-PME · Analytics{% endblock %}</title>
+
+  <!-- Fontes -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <!-- Inter (texto) -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+
+  <!-- Material Symbols Rounded (ícones) -->
+  <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap">
+
+  {#
+    Cache-buster automático baseado no mtime do ficheiro.
+    Requer `static_v` registado em `app.py` via context_processor.
+    Fallback: `?v=1` se a função não existir.
+  #}
+  {% set css_ver = static_v('css/style.css')   if static_v is defined else 1 %}
+  {% set js_ver  = static_v('js/dashboard.js') if static_v is defined else 1 %}
+
+  <link rel="stylesheet"
+        href="{{ url_for('static', filename='css/style.css') }}?v={{ css_ver }}">
+
+  <!--
+    ⚠️  ORDEM IMPORTANTE ⚠️
+
+    O Plotly tem de estar carregado ANTES do dashboard.js, senão
+    `Plotly.newPlot` rebenta dentro do dashboard.js.
+    Não troques a ordem destes dois blocos.
+  -->
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"
+          charset="utf-8"
+          onerror="console.error('[base.html] Plotly CDN falhou — verifica a ligação à internet.');"></script>
+</head>
+<body>
+
+  <!-- Fallback para utilizadores sem JavaScript -->
+  <noscript>
+    <div style="padding:1rem;background:#7f1d1d;color:#fff;text-align:center">
+      Este painel requer JavaScript. Ativa-o para veres os gráficos.
+    </div>
+  </noscript>
+
+  <!-- Hamburger (mobile) -->
+  <button id="btn-sidebar"
+          class="btn-sidebar"
+          aria-label="Abrir menu de navegação">
+    <span class="material-symbols-rounded" aria-hidden="true">menu</span>
+  </button>
+
+  {#
+    ════════════════════════════════════════════════════════════════
+    DADOS DO UTILIZADOR — fallback seguro
+    ════════════════════════════════════════════════════════════════
+    Prioridade:
+      1. context_processor do app.py (`current_user`, `current_company`)
+      2. sessão Flask diretamente (`session.get(...)`)
+      3. defaults neutros
+  #}
+  {% set u_name  = (current_user.name  if current_user is defined and current_user.name)
+                    or (session.get('name') if session else None)
+                    or 'Utilizador' %}
+  {% set u_role  = (current_user.role  if current_user is defined and current_user.role)
+                    or (session.get('role') if session else None)
+                    or 'operator' %}
+  {% set u_super = (current_user.is_super if current_user is defined)
+                    or (session.get('is_super') if session else False) %}
+  {% set u_glob  = (current_user.is_global if current_user is defined)
+                    or (session.get('is_global') if session else False) %}
+  {% set c_name  = (current_company.name if current_company is defined and current_company.name)
+                    or (session.get('company_name') if session else None)
+                    or '—' %}
+
+  <!-- Sidebar -->
+  <aside class="sidebar" aria-label="Navegação principal">
+    <div class="logo">
+      <span class="material-symbols-rounded logo-icon" aria-hidden="true">insights</span>
+      BIP<span>Analytics</span>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- BLOCO DE UTILIZADOR + AÇÕES (PERFIL · SAIR)                -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    {% if session and session.get('user_id') %}
+    <div class="sidebar-user" role="region" aria-label="Sessão do utilizador">
+      <div class="sidebar-user-info">
+        <div class="sidebar-user-avatar" aria-hidden="true">
+          {{ (u_name[0] if u_name else '?') | upper }}
+        </div>
+        <div class="sidebar-user-meta">
+          <strong class="sidebar-user-nome" title="{{ u_name }}">{{ u_name }}</strong>
+          <small class="sidebar-user-role"
+                 title="{{ u_role }}{% if not u_glob %} · {{ c_name }}{% endif %}">
+            {% if u_super %}
+              Admin · visão global
+            {% elif u_role == 'manager' %}
+              Manager · visão global
+            {% elif u_role == 'bi_analyst' %}
+              BI Analyst · visão global
+            {% elif u_role == 'operator' %}
+              Operador
+              {% if c_name and c_name != '—' %} · {{ c_name }}{% endif %}
+            {% elif u_role == 'external' %}
+              Externo
+              {% if c_name and c_name != '—' %} · {{ c_name }}{% endif %}
+            {% else %}
+              {{ u_role | replace('_', ' ') | title }}
+              {% if c_name and c_name != '—' %} · {{ c_name }}{% endif %}
+            {% endif %}
+          </small>
+        </div>
+      </div>
+
+      <div class="sidebar-user-actions">
+        <a href="{{ url_for('auth.perfil') }}"
+           class="btn-user btn-perfil"
+           title="O meu perfil"
+           aria-label="Abrir o meu perfil">
+          <span class="material-symbols-rounded" aria-hidden="true">settings</span>
+          <span>Perfil</span>
+        </a>
+
+        <a href="{{ url_for('auth.logout') }}"
+           class="btn-user btn-sair"
+           id="btn-sair"
+           title="Terminar sessão"
+           aria-label="Terminar sessão e voltar ao login"
+           data-user-name="{{ u_name }}">
+          <span class="material-symbols-rounded" aria-hidden="true">logout</span>
+          <span>Sair</span>
+        </a>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Pesquisa de empresa -->
+    <div class="pesquisa-wrap">
+      <span class="material-symbols-rounded pesquisa-icon" aria-hidden="true">search</span>
+      <input id="pesquisa-empresa"
+             type="search"
+             placeholder="Pesquisar empresa…"
+             class="pesquisa"
+             aria-label="Pesquisar empresa"
+             autocomplete="off">
+    </div>
+
+    <!-- Navegação -->
+    <nav aria-label="Empresas">
+      <a href="/" class="{% if not empresa %}active{% endif %}">
+        <span class="material-symbols-rounded" aria-hidden="true">dashboard</span>
+        Visão Geral
+      </a>
+
+      <h4>Empresas</h4>
+      {% for e in empresas %}
+        <a href="{{ url_for('empresa', cid=e.id_company) }}"
+           class="{% if empresa and empresa.id_company == e.id_company %}active{% endif %}">
+          <span class="dot {{ e.status_company }}"></span>
+          {{ e.name_company }}
+        </a>
+      {% endfor %}
+    </nav>
+
+    <div class="sidebar-footer">
+      <small>Última actualização</small>
+      <strong id="hora-atual"></strong>
+    </div>
+  </aside>
+
+  <!-- Conteúdo (dashboard.html / empresa.html injetam aqui) -->
+  <main class="content">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!--
+    dashboard.js DEPOIS do conteúdo:
+      • o `#dados-graficos` já existe no DOM quando este script corre
+      • `defer` garante a execução só após parse completo
+      • cache-buster automático (?v=<mtime>)
+  -->
+  <script src="{{ url_for('static', filename='js/dashboard.js') }}?v={{ js_ver }}"
+          defer></script>
+
+  <script>
+    // ═══════════════════════════════════════════════════════════════
+    // 1. Relógio simples no rodapé da sidebar
+    // ═══════════════════════════════════════════════════════════════
+    (function () {
+      const el = document.getElementById("hora-atual");
+      if (!el) return;
+      const tick = () => {
+        el.textContent = new Date().toLocaleTimeString("pt-PT");
+      };
+      tick();
+      setInterval(tick, 30000);
+    })();
+
+    // ═══════════════════════════════════════════════════════════════
+    // 2. Botão SAIR — confirmação antes de terminar sessão
+    //    (não depende do dashboard.js, funciona mesmo se ele falhar)
+    // ═══════════════════════════════════════════════════════════════
+    (function () {
+      const link = document.getElementById("btn-sair");
+      if (!link) return;
+
+      link.addEventListener("click", function (e) {
+        const nome = link.dataset.userName || "esta conta";
+        const ok = window.confirm(
+          "Terminar sessão?\n\n" +
+          "Vais sair de " + nome + " e serás redirecionado para o login."
+        );
+
+        if (!ok) {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        }
+
+        // Feedback visual imediato
+        link.style.opacity = ".6";
+        link.style.pointerEvents = "none";
+        const span = link.querySelector("span:last-child");
+        if (span) span.textContent = "A sair…";
+        // O browser segue o href="/logout" naturalmente
+      });
+
+      // Atalho: Ctrl+Shift+Q também pede confirmação de saída
+      document.addEventListener("keydown", function (e) {
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey &&
+            e.key.toLowerCase() === "q") {
+          e.preventDefault();
+          link.click();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

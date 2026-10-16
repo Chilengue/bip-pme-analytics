@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="perfil-wrap">
+  <h2>O meu perfil</h2>
+
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in msgs %}
+      <div class="flash flash-{{ cat }}">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <div class="perfil-grid">
+    <div class="perfil-row"><span>Nome</span><strong>{{ u.name_user }}</strong></div>
+    <div class="perfil-row"><span>Email</span><strong>{{ u.email_user or '—' }}</strong></div>
+    <div class="perfil-row"><span>Telefone</span><strong>{{ u.phone_user or '—' }}</strong></div>
+    <div class="perfil-row"><span>Perfil</span><strong>{{ u.role_user }}</strong></div>
+    <div class="perfil-row"><span>Empresa</span><strong>{{ u.name_company or '— (super admin)' }}</strong></div>
+    <div class="perfil-row"><span>Código de acesso</span>
+      <code>{{ u.access_code_user or '—' }}</code></div>
+    <div class="perfil-row"><span>Último login</span><strong>{{ u.last_login_user or '—' }}</strong></div>
+  </div>
+
+  <h3>Alterar password</h3>
+  <form method="post" action="{{ url_for('auth.alterar_password') }}" class="perfil-form">
+    <input type="password" name="atual" placeholder="Password atual" required>
+    <input type="password" name="nova"  placeholder="Nova password" required minlength="6">
+    <button type="submit">Atualizar</button>
+  </form>
+</div>
+{% endblock %}
