@@ -29,14 +29,24 @@ load_dotenv()
 
 DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
 DB_PORT = os.getenv("DB_PORT", "3306")
-DB_NAME = os.getenv("DB_NAME", "bip-pme")
+DB_NAME = os.getenv("DB_NAME", "defaultdb")
 DB_USER = os.getenv("DB_USER", "root")
 DB_PASS = os.getenv("DB_PASSWORD", "")
 
-# ALTERAÇÃO: adicionado &ssl_disabled=False para o Laion Cloud
+# ------------------------------------------------------------------ #
+# CORREÇÃO PARA AIVEN:
+# A Aiven exige SSL. O parâmetro correto para o mysql-connector-python
+# é "ssl_disabled=False" (já existe) MAS também é preciso garantir que
+# o modo SSL está ativo. Para o mysql-connector, a string de conexão
+# deve incluir "ssl_ca" ou pelo menos "ssl_disabled=False" E o driver
+# deve negociar TLS automaticamente. O erro anterior era causado por
+# não passar "ssl_verify_cert=False" e o servidor rejeitar a ligação.
+# Adicionamos "ssl_verify_cert=False" para aceitar o certificado da Aiven.
+# ------------------------------------------------------------------ #
 URL = (
     f"mysql+mysqlconnector://{DB_USER}:{DB_PASS}"
-    f"@{DB_HOST}:{DB_PORT}/{DB_NAME}?charset=utf8mb4&ssl_disabled=False"
+    f"@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+    f"?charset=utf8mb4&ssl_disabled=False&ssl_verify_cert=False"
 )
 
 ENGINE = create_engine(
@@ -46,6 +56,12 @@ ENGINE = create_engine(
     pool_size=5,
     max_overflow=10,
     future=True,
+    connect_args={
+        # Garante que o mysql-connector usa SSL sem verificar o certificado
+        # (necessário para a Aiven, que usa certificados próprios)
+        "ssl_disabled": False,
+        "ssl_verify_cert": False,
+    },
 )
 
 log = logging.getLogger("analytics")
