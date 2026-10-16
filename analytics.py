@@ -33,9 +33,10 @@ DB_NAME = os.getenv("DB_NAME", "bip-pme")
 DB_USER = os.getenv("DB_USER", "root")
 DB_PASS = os.getenv("DB_PASSWORD", "")
 
+# ALTERAÇÃO: adicionado &ssl_disabled=False para o Laion Cloud
 URL = (
     f"mysql+mysqlconnector://{DB_USER}:{DB_PASS}"
-    f"@{DB_HOST}:{DB_PORT}/{DB_NAME}?charset=utf8mb4"
+    f"@{DB_HOST}:{DB_PORT}/{DB_NAME}?charset=utf8mb4&ssl_disabled=False"
 )
 
 ENGINE = create_engine(
