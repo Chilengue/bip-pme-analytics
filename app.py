@@ -29,6 +29,10 @@ import pandas as pd
 import plotly.express as px
 import plotly.io as pio
 
+# Carregar variáveis de ambiente do .env (local)
+from dotenv import load_dotenv
+load_dotenv()
+
 import analytics as A
 import auth as Auth
 
@@ -835,12 +839,16 @@ def server_error(e):
 if __name__ == "__main__":
     log.info("A iniciar BIP-PME Analytics...")
 
+    # Em produção (Render) a porta é definida pela variável de ambiente PORT.
+    # Localmente, usamos a 5000 como fallback.
+    port = int(os.environ.get("PORT", 5000))
+    
     use_reload = os.getenv("FLASK_USE_RELOADER", "0") == "1"
 
     app.run(
         debug=True,
         host="0.0.0.0",
-        port=5000,
+        port=port,
         use_reloader=use_reload,
         threaded=True,
     )
