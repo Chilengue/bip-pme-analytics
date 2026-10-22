@@ -27,11 +27,11 @@ from dotenv import load_dotenv
 # ================================================================== #
 load_dotenv()
 
-DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
-DB_PORT = os.getenv("DB_PORT", "3306")
+DB_HOST = os.getenv("DB_HOST", "mysql-8c5f0a2-chilenguejoseorlando-4e5d.l.aivencloud.com")
+DB_PORT = os.getenv("DB_PORT", "28922")
 DB_NAME = os.getenv("DB_NAME", "defaultdb")
-DB_USER = os.getenv("DB_USER", "root")
-DB_PASS = os.getenv("DB_PASSWORD", "")
+DB_USER = os.getenv("DB_USER", "avnadmin")
+DB_PASS = os.getenv("DB_PASSWORD", "AVNS_RyE74rN-9PYt_Dsjdwj")
 
 # ------------------------------------------------------------------ #
 # CORREÇÃO PARA AIVEN:
