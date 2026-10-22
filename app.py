@@ -35,15 +35,22 @@ load_dotenv()
 
 # ================================================================== #
 # CREDENCIAIS DA BASE DE DADOS (modo teste — hardcoded)
+# ATENÇÃO: NÃO subir para o GitHub. Em produção, usar apenas .env.
 # ================================================================== #
-os.environ["DB_HOST"]     = "mysql-8c5f0a2-chilenguejoseorlando-4e5d.l.aivencloud.com"
-os.environ["DB_PORT"]     = "28922"
-os.environ["DB_NAME"]     = "bip-pme"
-os.environ["DB_USER"]     = "avnadmin"
-os.environ["DB_PASSWORD"] = "AVNS_RyE74rN-9PYt_Dsjdwj"
+os.environ.setdefault(
+    "DB_HOST",
+    "mysql-8c5f0a2-chilenguejoseorlando-4e5d.l.aivencloud.com",
+)
+os.environ.setdefault("DB_PORT", "28922")
+os.environ.setdefault("DB_NAME", "bip-pme")
+os.environ.setdefault("DB_USER", "avnadmin")
+os.environ.setdefault("DB_PASSWORD", "AVNS_RyE74rN-9PYt_Dsjdwj")
 
 # Chave de sessão (modo teste)
-os.environ["SECRET_KEY"]  = "teste-bip-pme-secret-key-2024-troca-em-producao"
+os.environ.setdefault(
+    "SECRET_KEY",
+    "teste-bip-pme-secret-key-2024-troca-em-producao",
+)
 
 import analytics as A
 import auth as Auth
@@ -98,6 +105,15 @@ def _inject_globals():
             "id":   session.get("company_id"),
             "name": session.get("company_name"),
         },
+        # atalho útil nos templates para mostrar/esconder secções
+        "is_financeiro": (
+            session.get("is_super", False)
+            or session.get("role") in Auth.ROLES_FINANCEIRO
+        ),
+        "pode_gerir_users": (
+            session.get("is_super", False)
+            or session.get("role") in Auth.ROLES_GERIR_USERS
+        ),
     }
 
 
@@ -262,6 +278,14 @@ def _regista_grafico(graficos, nome, df, builder):
         log.info("Gráfico '%s': OK (%d linhas).", nome, len(df))
     except Exception as e:
         log.exception("Gráfico '%s': falhou: %s", nome, e)
+
+
+def _pode_ver_financeiro() -> bool:
+    """Centraliza a decisão de mostrar dados financeiros."""
+    return (
+        session.get("is_super", False)
+        or session.get("role") in Auth.ROLES_FINANCEIRO
+    )
 
 
 # ================================================================== #
@@ -531,7 +555,7 @@ def empresa(cid):
     )
 
     # ---------- Pagamentos (roles financeiros) ----------
-    if session.get("is_super") or session.get("role") in Auth.ROLES_FINANCEIRO:
+    if _pode_ver_financeiro():
         _regista_grafico(
             graficos, "pagamentos",
             _safe(lambda: A.metodos_pagamento(cid)),
@@ -670,8 +694,17 @@ def empresa(cid):
 # 07. ÁREA ADMIN
 # ================================================================== #
 @app.route("/admin/utilizadores")
-@Auth.role_required(Auth.ROLE_MANAGER)
+@Auth.role_required(Auth.ROLE_MANAGER, Auth.ROLE_BI)
 def admin_utilizadores():
+    """
+    Lista de utilizadores.
+
+    Acesso:
+      • admin / super_admin  → passam sempre (is_super)
+      • manager              → role explícito
+      • bi_analyst           → role explícito (leitura)
+      • operator / external  → 403
+    """
     cid = session.get("company_id")
     if Auth.is_global_viewer():
         try:
@@ -854,7 +887,7 @@ if __name__ == "__main__":
     # Em produção (Render) a porta é definida pela variável de ambiente PORT.
     # Localmente, usamos a 5000 como fallback.
     port = int(os.environ.get("PORT", 5000))
-    
+
     use_reload = os.getenv("FLASK_USE_RELOADER", "0") == "1"
 
     app.run(
