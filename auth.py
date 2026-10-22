@@ -38,7 +38,7 @@ from sqlalchemy.exc import SQLAlchemyError
 try:
     import bcrypt as _bcrypt
     _HAS_BCRYPT = True
-except ImportError:                                  # pragma: no cover
+except ImportError:
     _bcrypt = None
     _HAS_BCRYPT = False
 
@@ -62,39 +62,21 @@ ROLES_VALIDOS = {
     ROLE_BI, ROLE_EXTERNAL, ROLE_ADMIN_LEGACY,
 }
 
-# ------------------------------------------------------------------
-# Âmbito de visão
-# ------------------------------------------------------------------
-# Quem vê TODAS as empresas (menu + dashboards)
 ROLES_ANALISE_GLOBAL = {
-    ROLE_ADMIN_LEGACY,   # admin
-    ROLE_SUPER_ADMIN,    # super_admin
-    ROLE_MANAGER,        # manager
-    ROLE_BI,             # bi_analyst
+    ROLE_ADMIN_LEGACY, ROLE_SUPER_ADMIN, ROLE_MANAGER, ROLE_BI,
 }
 
-# Quem vê apenas a sua empresa
-ROLES_ANALISE_LOCAL = {
-    ROLE_OPERATOR,
-    ROLE_EXTERNAL,
-}
-
-# Qualquer utilizador que possa aceder à análise
+ROLES_ANALISE_LOCAL = {ROLE_OPERATOR, ROLE_EXTERNAL}
 ROLES_ANALISE = ROLES_ANALISE_GLOBAL | ROLES_ANALISE_LOCAL
 
-# Quem vê dados financeiros / pagamentos
 ROLES_FINANCEIRO = {
-    ROLE_ADMIN_LEGACY, ROLE_SUPER_ADMIN,
-    ROLE_MANAGER, ROLE_BI,
+    ROLE_ADMIN_LEGACY, ROLE_SUPER_ADMIN, ROLE_MANAGER, ROLE_BI,
 }
 
-# Quem pode escrever (criar/editar)
 ROLES_ESCRITA = {
-    ROLE_ADMIN_LEGACY, ROLE_SUPER_ADMIN,
-    ROLE_MANAGER, ROLE_OPERATOR,
+    ROLE_ADMIN_LEGACY, ROLE_SUPER_ADMIN, ROLE_MANAGER, ROLE_OPERATOR,
 }
 
-# Quem pode gerir utilizadores
 ROLES_GERIR_USERS = {
     ROLE_ADMIN_LEGACY, ROLE_SUPER_ADMIN, ROLE_MANAGER,
 }
@@ -102,19 +84,10 @@ ROLES_GERIR_USERS = {
 
 # ================================================================== #
 # 02. VERIFICAÇÃO DE PASSWORD
-#     Aceita bcrypt (PHP $2y$, Python $2a$/$2b$) e werkzeug.
 # ================================================================== #
 def _verify_password(stored_hash: str | None, plain: str | None) -> bool:
     """
-    Verifica password aceitando:
-      • $2y$ / $2a$ / $2b$      → bcrypt (PHP / Python)
-      • pbkdf2:... / scrypt:... → werkzeug
-      • outro formato            → compara direto (só debug — INSEGURO)
-
-    Nota importante sobre $2y$:
-      O PHP usa $2y$ para bcrypt; a biblioteca Python `bcrypt` só
-      aceita $2a$ e $2b$. Como o algoritmo é idêntico, convertemos
-      o prefixo $2y$ → $2b$ antes de chamar checkpw.
+    Verifica password aceitando bcrypt (PHP/Python) e werkzeug.
     """
     if not stored_hash or not plain:
         return False
@@ -124,39 +97,29 @@ def _verify_password(stored_hash: str | None, plain: str | None) -> bool:
     # ---------- bcrypt (PHP $2y$, $2a$, $2b$) ----------
     if stored_hash.startswith(("$2y$", "$2a$", "$2b$")):
         if not _HAS_BCRYPT:
-            log.error(
-                "Hash bcrypt detectado mas o módulo `bcrypt` não está instalado. "
-                "Corre: pip install bcrypt"
-            )
+            log.error("Hash bcrypt detectado mas o módulo `bcrypt` não está instalado. Corre: pip install bcrypt")
             return False
 
-        # Normalizar: $2y$ (PHP) → $2b$ (Python)
         hash_check = stored_hash
         if hash_check.startswith("$2y$"):
             hash_check = "$2b$" + hash_check[4:]
 
         try:
-            ok = _bcrypt.checkpw(
-                plain.encode("utf-8"),
-                hash_check.encode("utf-8"),
-            )
+            ok = _bcrypt.checkpw(plain.encode("utf-8"), hash_check.encode("utf-8"))
             if not ok:
-                log.info(
-                    "Password incorreta para user com hash %s...",
-                    stored_hash[:20],
-                )
+                log.info("Tentativa de login falhou: password incorreta (bcrypt).")
             return ok
         except (ValueError, TypeError) as e:
-            log.warning(
-                "bcrypt.checkpw falhou (%s) — hash=%s...",
-                e, stored_hash[:20],
-            )
+            log.warning("bcrypt.checkpw falhou: %s", e)
             return False
 
     # ---------- werkzeug ----------
     if stored_hash.startswith(("pbkdf2:", "scrypt:", "$pbkdf2$")):
         try:
-            return check_password_hash(stored_hash, plain)
+            ok = check_password_hash(stored_hash, plain)
+            if not ok:
+                log.info("Tentativa de login falhou: password incorreta (werkzeug).")
+            return ok
         except (ValueError, TypeError) as e:
             log.warning("check_password_hash falhou: %s", e)
             return False
@@ -245,14 +208,6 @@ def _modulos(user: dict) -> list[str]:
 
 
 def _is_super(user: dict) -> bool:
-    """
-    Super admin (acesso total de escrita + gestão):
-      • is_super_admin = 1 (coluna opcional)
-      • OU role_user in ('admin','super_admin')
-
-    Manager e bi_analyst NÃO são super — têm visão global
-    de leitura, mas não herdam automaticamente poderes totais.
-    """
     if user.get("is_super_admin"):
         return True
     return user.get("role_user") in (ROLE_SUPER_ADMIN, ROLE_ADMIN_LEGACY)
@@ -353,11 +308,6 @@ def current_company_id() -> int | None:
 
 
 def is_global_viewer() -> bool:
-    """
-    True se o role atual pode ver TODAS as empresas.
-      • admin / super_admin / manager / bi_analyst  → True
-      • operator / external                         → False
-    """
     if session.get("is_super"):
         return True
     if session.get("is_global"):
@@ -366,12 +316,6 @@ def is_global_viewer() -> bool:
 
 
 def ensure_company_access(cid: int) -> None:
-    """
-    Garante que o user atual pode ver a empresa `cid`.
-
-      • Roles globais (admin/manager/bi) → sempre.
-      • Roles locais (operator/external) → apenas a sua.
-    """
     if is_global_viewer():
         return
     if cid != session.get("company_id"):
@@ -385,12 +329,6 @@ def ensure_company_access(cid: int) -> None:
 
 
 def visible_companies() -> list[dict]:
-    """
-    Empresas que o user pode ver.
-
-      • admin / manager / bi_analyst  → TODAS
-      • operator / external           → só a sua
-    """
     if is_global_viewer():
         try:
             return A.listar_empresas().to_dict("records")
@@ -417,7 +355,6 @@ def visible_companies() -> list[dict]:
 # 08. AUDITORIA
 # ================================================================== #
 def audit(action: str, resource: str = "", payload: dict | None = None) -> None:
-    """Regista ação no audit_logs."""
     try:
         with _engine().begin() as con:
             con.execute(text("""
@@ -455,32 +392,39 @@ def login():
 
         user = None
 
-        # ---------- via código de acesso ----------
+        # 1. Tenta via código de acesso (se preenchido)
         if code:
             user = get_user_by_access_code(code)
             if not user:
+                log.info("Login falhou: código de acesso '%s' não encontrado ou inativo.", code)
                 erro = "Código de acesso inválido."
-
-        # ---------- via email + password ----------
-        elif email and pwd:
+        
+        # 2. Tenta via email + password (se preenchidos)
+        if not user and email and pwd:
             user = get_user_by_email(email)
-            if not user or not user.get("password_user"):
-                erro = "Credenciais inválidas."
+            if not user:
+                log.info("Login falhou: email '%s' não encontrado ou inativo.", email)
+                erro = "Credenciais inválidas (email não encontrado)."
+            elif not user.get("password_user"):
+                log.info("Login falhou: user '%s' não tem password definida.", email)
+                erro = "Esta conta não tem password. Usa o código de acesso."
             elif not _verify_password(user["password_user"], pwd):
-                erro = "Credenciais inválidas."
+                erro = "Credenciais inválidas (password incorreta)."
 
-        else:
+        # 3. Se não preencheu nada de útil
+        if not code and not (email and pwd):
             erro = "Preenche email+password ou o código de acesso."
 
-        # ---------- validações finais ----------
+        # 4. Validações finais de empresa e login
         if user and not erro:
             if user.get("status_company") and user["status_company"] != "active":
                 erro = "A empresa está inativa. Contacta o suporte."
             else:
                 login_user(user)
                 audit("auth.login", f"users/{user['id_user']}")
+                log.info("Login com sucesso: %s (role=%s)", user.get("email_user"), user.get("role_user"))
+                
                 nxt = request.args.get("next") or request.form.get("next")
-                # proteção contra open-redirect: só aceita paths relativos
                 if nxt and not nxt.startswith("/"):
                     nxt = None
                 return redirect(nxt or url_for("index"))
@@ -502,7 +446,7 @@ def logout():
 @login_required
 def perfil():
     user = get_user_by_id(session["user_id"]) or {}
-    user.pop("password_user", None)   # nunca expor o hash
+    user.pop("password_user", None)
     return render_template("perfil.html", u=user)
 
 
@@ -520,7 +464,6 @@ def alterar_password():
     if not user:
         abort(404)
 
-    # se já tem password, exige a atual
     if user.get("password_user"):
         if not _verify_password(user["password_user"], atual):
             flash("Password atual incorreta.", "erro")
