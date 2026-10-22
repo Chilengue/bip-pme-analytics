@@ -42,7 +42,7 @@ os.environ.setdefault(
     "mysql-8c5f0a2-chilenguejoseorlando-4e5d.l.aivencloud.com",
 )
 os.environ.setdefault("DB_PORT", "28922")
-os.environ.setdefault("DB_NAME", "bip-pme")
+os.environ.setdefault("DB_NAME", "defaultdb")
 os.environ.setdefault("DB_USER", "avnadmin")
 os.environ.setdefault("DB_PASSWORD", "AVNS_RyE74rN-9PYt_Dsjdwj")
 
