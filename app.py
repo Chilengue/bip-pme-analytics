@@ -33,6 +33,18 @@ import plotly.io as pio
 from dotenv import load_dotenv
 load_dotenv()
 
+# ================================================================== #
+# CREDENCIAIS DA BASE DE DADOS (modo teste — hardcoded)
+# ================================================================== #
+os.environ["DB_HOST"]     = "mysql-8c5f0a2-chilenguejoseorlando-4e5d.l.aivencloud.com"
+os.environ["DB_PORT"]     = "28922"
+os.environ["DB_NAME"]     = "bip-pme"
+os.environ["DB_USER"]     = "avnadmin"
+os.environ["DB_PASSWORD"] = "AVNS_RyE74rN-9PYt_Dsjdwj"
+
+# Chave de sessão (modo teste)
+os.environ["SECRET_KEY"]  = "teste-bip-pme-secret-key-2024-troca-em-producao"
+
 import analytics as A
 import auth as Auth
 
